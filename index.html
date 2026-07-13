@@ -133,7 +133,6 @@
             max-width: 180px;
         }
 
-        /* Пустая карточка-заглушка для выравнивания (невидима) */
         .chart-card-placeholder {
             visibility: hidden;
             pointer-events: none;
@@ -170,11 +169,11 @@
             line-height: 1.2;
         }
 
-        /* Детальная разница */
+        /* Детальная разница — теперь каждая единица отдельно (не суммарно) */
         .stats-row {
             display: flex;
             justify-content: center;
-            gap: 20px;
+            gap: 16px;
             margin-bottom: 50px;
             flex-wrap: wrap;
             width: 100%;
@@ -184,8 +183,9 @@
             background: #f8f8f8;
             padding: 12px 18px;
             border-radius: 20px;
-            min-width: 100px;
+            min-width: 90px;
             text-align: center;
+            flex: 0 1 auto;
         }
 
         .stat-label {
@@ -193,13 +193,14 @@
             letter-spacing: 2px;
             text-transform: uppercase;
             color: #666666;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
         .stat-number {
             font-size: 1.5rem;
             font-weight: 600;
             line-height: 1.2;
+            white-space: nowrap;
         }
 
         .footer {
@@ -211,7 +212,7 @@
             width: 100%;
         }
 
-        /* Планшеты: 2 диаграммы в ряд, центрирование */
+        /* Планшеты: 2 диаграммы в ряд */
         @media (max-width: 900px) {
             .content { padding: 50px 25px; }
             .time-display { font-size: 3rem; }
@@ -230,11 +231,10 @@
             }
             .chart-percent-number { font-size: 1.6rem; }
             .stat-number { font-size: 1.3rem; }
-            .stat-card { padding: 10px 14px; min-width: 90px; }
-            /* На планшетах 7 элементов: 2+2+2+1 — последний ряд центрируем через плейсхолдеры */
+            .stat-card { padding: 10px 14px; min-width: 80px; }
         }
 
-        /* Мобильные: 1 диаграмма в ряд, по центру */
+        /* Мобильные: 1 диаграмма в ряд */
         @media (max-width: 600px) {
             .time-display { font-size: 2.2rem; }
             .charts-grid {
@@ -256,16 +256,15 @@
             }
             .chart-percent-number { font-size: 1.7rem; }
             .stats-row {
-                gap: 12px;
+                gap: 10px;
             }
             .stat-card {
-                min-width: 80px;
-                padding: 8px 12px;
+                min-width: 70px;
+                padding: 8px 10px;
             }
             .stat-number {
                 font-size: 1.1rem;
             }
-            /* На мобильных плейсхолдеры не нужны, так как 1 колонка */
             .chart-card-placeholder {
                 display: none;
             }
@@ -304,10 +303,10 @@
             <div class="since-date">25 июня 2026, 00:00:00</div>
         </div>
 
-        <!-- Сетка диаграмм: час, день, неделя, месяц, 3 мес, полгода, год + плейсхолдеры для центрирования последнего ряда -->
+        <!-- Сетка диаграмм -->
         <div class="charts-grid" id="chartsGrid"></div>
 
-        <!-- Детальная разница -->
+        <!-- Детальная разница: теперь каждая единица отдельно -->
         <div class="stats-row" id="statsContainer"></div>
 
         <div class="footer">
@@ -348,19 +347,21 @@
         return elapsed < 0 ? 0 : elapsed;
     }
     
-    function getDetailedDiff(elapsedMs) {
-        if (elapsedMs <= 0) return { months:0, weeks:0, days:0, hours:0, minutes:0, seconds:0, milliseconds:0 };
-        const totalDays = elapsedMs / MS_PER_DAY;
-        const months = Math.floor(totalDays / 30.44);
-        const daysAfterMonths = totalDays - months * 30.44;
-        const weeks = Math.floor(daysAfterMonths / 7);
-        const days = Math.floor(daysAfterMonths % 7);
-        
-        const remainingAfterDays = elapsedMs - (months * 30.44 * MS_PER_DAY) - (weeks * 7 * MS_PER_DAY) - (days * MS_PER_DAY);
-        const hours = Math.floor(remainingAfterDays / MS_PER_HOUR);
-        const minutes = Math.floor((remainingAfterDays % MS_PER_HOUR) / MS_PER_MINUTE);
-        const seconds = Math.floor((remainingAfterDays % MS_PER_MINUTE) / 1000);
-        const milliseconds = Math.floor(remainingAfterDays % 1000);
+    // НОВАЯ ФУНКЦИЯ: возвращает прошедшее время в каждой единице ОТДЕЛЬНО (не суммарно)
+    function getSeparateUnits(elapsedMs) {
+        if (elapsedMs <= 0) {
+            return {
+                months: 0, weeks: 0, days: 0, hours: 0, minutes: 0, seconds: 0, milliseconds: 0
+            };
+        }
+        // Каждая единица считается отдельно от общей длительности
+        const months = elapsedMs / MS_PER_MONTH_AVG;
+        const weeks = elapsedMs / MS_PER_WEEK;
+        const days = elapsedMs / MS_PER_DAY;
+        const hours = elapsedMs / MS_PER_HOUR;
+        const minutes = elapsedMs / MS_PER_MINUTE;
+        const seconds = elapsedMs / MS_PER_SECOND;
+        const milliseconds = elapsedMs;
         
         return { months, weeks, days, hours, minutes, seconds, milliseconds };
     }
@@ -409,15 +410,11 @@
     
     let chartElements = {};
     
-    // Создание сетки с плейсхолдерами для центрирования последнего ряда
-    // Всего элементов: 7. При 3 колонках последний ряд имеет 1 элемент.
-    // Чтобы центрировать его, добавляем 2 пустых невидимых элемента после года.
     function initChartsGrid() {
         const gridContainer = document.getElementById('chartsGrid');
         if (!gridContainer) return;
         gridContainer.innerHTML = '';
         
-        // Сначала создаем реальные карточки для всех периодов
         PERIODS.forEach(period => {
             const card = document.createElement('div');
             card.className = 'chart-card';
@@ -450,8 +447,7 @@
             chartElements[period.id] = { canvas, percentDiv };
         });
         
-        // Добавляем плейсхолдеры для центрирования последнего ряда при 3 колонках
-        // Определяем необходимое количество плейсхолдеров: 3 - (количество элементов % 3) если остаток не 0
+        // Плейсхолдеры для центрирования последнего ряда (3 колонки)
         const totalItems = PERIODS.length; // 7
         const columns = 3;
         const remainder = totalItems % columns;
@@ -460,7 +456,6 @@
             for (let i = 0; i < placeholdersNeeded; i++) {
                 const placeholder = document.createElement('div');
                 placeholder.className = 'chart-card-placeholder';
-                // Для сохранения структуры добавляем внутренние пустые элементы с той же высотой
                 const innerDummy = document.createElement('div');
                 innerDummy.style.width = '140px';
                 innerDummy.style.height = '140px';
@@ -525,9 +520,10 @@
     
     let statsInitialized = false;
     function updateDetailedStats(elapsedMs) {
-        const diff = getDetailedDiff(elapsedMs);
+        const units = getSeparateUnits(elapsedMs);
         const container = document.getElementById('statsContainer');
         if (!container) return;
+        
         if (!statsInitialized) {
             container.innerHTML = `
                 <div class="stat-card"><div class="stat-label">месяцев</div><div class="stat-number" id="statMonths">0</div></div>
@@ -540,13 +536,15 @@
             `;
             statsInitialized = true;
         }
-        document.getElementById('statMonths').innerText = diff.months;
-        document.getElementById('statWeeks').innerText = diff.weeks;
-        document.getElementById('statDays').innerText = diff.days;
-        document.getElementById('statHours').innerText = diff.hours;
-        document.getElementById('statMinutes').innerText = diff.minutes;
-        document.getElementById('statSeconds').innerText = diff.seconds;
-        document.getElementById('statMillis').innerText = diff.milliseconds;
+        
+        // Отображаем с дробной частью для больших единиц, для секунд и мс — целые
+        document.getElementById('statMonths').innerText = units.months.toFixed(4);
+        document.getElementById('statWeeks').innerText = units.weeks.toFixed(4);
+        document.getElementById('statDays').innerText = units.days.toFixed(4);
+        document.getElementById('statHours').innerText = units.hours.toFixed(4);
+        document.getElementById('statMinutes').innerText = units.minutes.toFixed(4);
+        document.getElementById('statSeconds').innerText = Math.floor(units.seconds);
+        document.getElementById('statMillis').innerText = Math.floor(units.milliseconds);
     }
     
     function updateCurrentTimeDisplay() {
@@ -575,20 +573,13 @@
     function handleResize() {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
-            // При ресайзе нужно удалить и пересоздать плейсхолдеры, т.к. ширина может измениться
-            // Но проще перестроить сетку заново, сохранив данные прогресса
-            const elapsed = getElapsedMs();
-            // Пересоздаем сетку с правильными плейсхолдерами для текущего кол-ва колонок
-            // Для этого нужно знать, сколько колонок сейчас активных через CSS. Проще переинициализировать.
             const gridContainer = document.getElementById('chartsGrid');
             if (gridContainer) {
-                // Сохраним текущие проценты? проще заново отрисовать DOM, данные прогресса всё равно пересчитаются
                 const wasInitialized = !!chartElements.hour;
                 if (wasInitialized) {
-                    // Пересоздаем
                     chartElements = {};
                     initChartsGrid();
-                    fullUpdate(); // сразу обновим значения
+                    fullUpdate();
                 }
             } else {
                 adjustCanvasSizes();
@@ -597,7 +588,6 @@
         }, 150);
     }
     
-    // Функция для правильного пересоздания при изменении ширины экрана (чтобы плейсхолдеры корректно работали для 2 колонок на планшете)
     let lastColumns = 3;
     function checkAndRebuildGrid() {
         let currentColumns = 3;
@@ -607,7 +597,6 @@
         
         if (currentColumns !== lastColumns) {
             lastColumns = currentColumns;
-            // Перестраиваем сетку с новым количеством плейсхолдеров
             const gridContainer = document.getElementById('chartsGrid');
             if (gridContainer) {
                 chartElements = {};
@@ -637,11 +626,6 @@
                 checkAndRebuildGrid();
             }, 50);
         });
-        
-        setInterval(() => {
-            const elapsed = getElapsedMs();
-            const diff = getDetailedDiff(elapsed);
-        }, 1000);
     }
     
     if (document.readyState === 'loading') {
